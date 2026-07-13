@@ -94,6 +94,7 @@ import Link from "next/link";
    showAdminBar?: boolean;
    onRegenerate?: () => void;
    shareUrl?: string;
+  pageId?: string;
  }
  
  function buildHtml(data: LandingPageData): string {
