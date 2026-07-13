@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, getClientIp } from "@/app/lib/rate-limit";
 
 const DEEPSEEK_API = "https://api.deepseek.com/v1/chat/completions";
 
-const SYSTEM_PROMPT = `你是一位资深的商业文案撰写师和落地页设计师。
+const SYSTEM_PROMPT = `你是一位资深的商业文案撰写师。
 
-你的任务是为商家的行业生成一套完整的商业官网文案。
+要求：为商家生成一套完整的商业官网文案。
 
-文案必须符合以下要求：
-1. 突出客户收益和价值，强调能解决客户的什么问题
-2. 使用有说服力的商业语言，适合真实商业网站展示
-3. 文案要能吸引潜在客户主动咨询或下单
-4. 内容具体且专业，避免空泛的套话
-5. 语气真诚、专业、有信任感
+核心要求：
+1. 语言必须自然、口语化，像真实店主写的文案，不要AI模板感
+2. 每条服务的表达方式要不同，不要重复相近的句式
+3. 优势要写具体事实和数据，不要空话（如"经验丰富"->"开店8年服务2000+客户"）
+4. 整体语气有温度、有真实感
+5. 每次生成内容结构要有所不同，避免千篇一律
 
 只返回 JSON 格式，不要 markdown 标记或代码围栏。`;
 
@@ -45,8 +46,18 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "DeepSeek API 密钥未配置，请在 .env.local 中设置 DEEPSEEK_API_KEY" },
+        { error: "DeepSeek API 密钥未配置, 请在 .env.local 中设置 DEEPSEEK_API_KEY" },
         { status: 500 }
+      );
+    }
+
+    // Rate limit: 20 per hour per IP
+    const ip = getClientIp(request);
+    const rlResult = checkRateLimit(ip, 20, 60 * 60 * 1000);
+    if (!rlResult.allowed) {
+      return NextResponse.json(
+        { error: `生成次数已达上限(每小时20次), 请 ${Math.ceil(rlResult.resetInMs / 60000)} 分钟后再试` },
+        { status: 429 }
       );
     }
 
